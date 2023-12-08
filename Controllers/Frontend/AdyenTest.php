@@ -1,12 +1,31 @@
 <?php
 
+use Adyen\Core\BusinessLogic\AdyenAPI\Exceptions\ConnectionSettingsNotFoundException;
+use Adyen\Core\BusinessLogic\Domain\Connection\Exceptions\ApiCredentialsDoNotExistException;
+use Adyen\Core\BusinessLogic\Domain\Connection\Exceptions\ApiKeyCompanyLevelException;
+use Adyen\Core\BusinessLogic\Domain\Connection\Exceptions\EmptyConnectionDataException;
+use Adyen\Core\BusinessLogic\Domain\Connection\Exceptions\EmptyStoreException;
+use Adyen\Core\BusinessLogic\Domain\Connection\Exceptions\InvalidAllowedOriginException;
+use Adyen\Core\BusinessLogic\Domain\Connection\Exceptions\InvalidApiKeyException;
+use Adyen\Core\BusinessLogic\Domain\Connection\Exceptions\InvalidConnectionSettingsException;
+use Adyen\Core\BusinessLogic\Domain\Connection\Exceptions\InvalidModeException;
+use Adyen\Core\BusinessLogic\Domain\Connection\Exceptions\MerchantIdChangedException;
+use Adyen\Core\BusinessLogic\Domain\Connection\Exceptions\ModeChangedException;
+use Adyen\Core\BusinessLogic\Domain\Connection\Exceptions\UserDoesNotHaveNecessaryRolesException;
+use Adyen\Core\BusinessLogic\Domain\Merchant\Exceptions\ClientKeyGenerationFailedException;
+use Adyen\Core\BusinessLogic\Domain\Payment\Exceptions\PaymentMethodDataEmptyException;
+use Adyen\Core\BusinessLogic\Domain\Webhook\Exceptions\FailedToGenerateHmacException;
+use Adyen\Core\BusinessLogic\Domain\Webhook\Exceptions\FailedToRegisterWebhookException;
+use Adyen\Core\BusinessLogic\Domain\Webhook\Exceptions\MerchantDoesNotExistException;
 use Adyen\Core\Infrastructure\Http\Exceptions\HttpRequestException;
-use Adyen\Core\Infrastructure\ORM\Exceptions\QueryFilterInvalidParamException;
 use AdyenPayment\Controllers\Common\AjaxResponseSetter;
 use AdyenPayment\E2ETest\Exception\InvalidDataException;
 use AdyenPayment\E2ETest\Services\AdyenAPIService;
 use AdyenPayment\E2ETest\Services\AuthorizationService;
-use AdyenPayment\E2ETest\Services\CreateSeedDataService;
+use AdyenPayment\E2ETest\Services\CreateCheckoutDataService;
+use AdyenPayment\E2ETest\Services\CreateInitialDataService;
+use Doctrine\ORM\OptimisticLockException;
+use Doctrine\ORM\ORMException;
 use Shopware\Components\CSRFWhitelistAware;
 
 /**
@@ -41,16 +60,15 @@ class Shopware_Controllers_Frontend_AdyenTest extends Enlight_Controller_Action 
      */
     public function getWhitelistedCSRFActions(): array
     {
-        return ['index'];
+        return ['index', 'createCheckoutPrerequisites'];
     }
 
     /**
      * Handles request by generating seed data for testing purposes
      *
      * @return void
-     *
-     * @throws JsonException
-     * @throws QueryFilterInvalidParamException
+     * @throws ORMException
+     * @throws OptimisticLockException|HttpRequestException
      */
     public function indexAction(): void
     {
@@ -61,14 +79,14 @@ class Shopware_Controllers_Frontend_AdyenTest extends Enlight_Controller_Action 
 
         try {
             if ($url === '' || $testApiKey === '' || $liveApiKey === '') {
-                throw new InvalidDataException('Url, test api key and live api key are required fields.');
+                throw new InvalidDataException('Url, test api key and live api key are required parameters.');
             }
 
             $adyenApiService = new AdyenAPIService();
             $adyenApiService->verifyManagementAPI($testApiKey, $liveApiKey);
             $authorizationService = new AuthorizationService();
             $credentials = $authorizationService->getAuthorizationCredentials();
-            $createSeedDataService = new CreateSeedDataService($url, $credentials);
+            $createSeedDataService = new CreateInitialDataService($url, $credentials);
             $createSeedDataService->createInitialData();
             $this->Response()->setBody(
                 json_encode(['message' => 'The initial data setup was successfully completed.'])
@@ -86,5 +104,59 @@ class Shopware_Controllers_Frontend_AdyenTest extends Enlight_Controller_Action 
         } finally {
             $this->Response()->setHeader('Content-Type', 'application/json');
         }
+    }
+
+    /**
+     * @return void
+     * @throws ConnectionSettingsNotFoundException
+     * @throws ApiCredentialsDoNotExistException
+     * @throws ApiKeyCompanyLevelException
+     * @throws EmptyConnectionDataException
+     * @throws EmptyStoreException
+     * @throws InvalidAllowedOriginException
+     * @throws InvalidApiKeyException
+     * @throws InvalidConnectionSettingsException
+     * @throws InvalidModeException
+     * @throws MerchantIdChangedException
+     * @throws ModeChangedException
+     * @throws UserDoesNotHaveNecessaryRolesException
+     * @throws ClientKeyGenerationFailedException
+     * @throws PaymentMethodDataEmptyException
+     * @throws FailedToGenerateHmacException
+     * @throws FailedToRegisterWebhookException
+     * @throws MerchantDoesNotExistException
+     */
+    public function createCheckoutPrerequisitesAction(): void
+    {
+        $payload = $this->Request()->getParams();
+        $testApiKey = $payload['testApiKey'] ?? '';
+
+        try {
+            if ($testApiKey === '') {
+                throw new InvalidDataException('Test api key is required parameter.');
+            }
+
+            $authorizationService = new AuthorizationService();
+            $credentials = $authorizationService->getAuthorizationCredentials();
+            $createCheckoutDataService = new CreateCheckoutDataService($credentials);
+            $createCheckoutDataService->crateCheckoutPrerequisitesData($testApiKey);
+            $this->Response()->setHeader('Content-Type', 'application/json');
+            $this->Response()->setBody(
+                json_encode(['message' => 'The checkout prerequisites data are sucessfully saved.'])
+            );
+        }catch (InvalidDataException $exception) {
+            $this->Response()->setStatusCode(400);
+            $this->Response()->setBody(
+                json_encode(['message' => $exception->getMessage()])
+            );
+        } catch (HttpRequestException $exception) {
+            $this->Response()->setStatusCode(503);
+            $this->Response()->setBody(
+                json_encode(['message' => $exception->getMessage()])
+            );
+        } finally {
+            $this->Response()->setHeader('Content-Type', 'application/json');
+        }
+
     }
 }

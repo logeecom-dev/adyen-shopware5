@@ -5,21 +5,19 @@ namespace AdyenPayment\E2ETest\Services;
 use Adyen\Core\Infrastructure\Configuration\ConfigurationManager;
 use Adyen\Core\Infrastructure\Http\Exceptions\HttpRequestException;
 use Adyen\Core\Infrastructure\ORM\Exceptions\QueryFilterInvalidParamException;
-use AdyenPayment\E2ETest\Http\TestProxy;
 use Adyen\Core\Infrastructure\Http\HttpClient;
 use Adyen\Core\Infrastructure\ServiceRegister;
 use AdyenPayment\E2ETest\Http\ShopsTestProxy;
-use Adyen\Core\BusinessLogic\E2ETest\Services\CreateSeedDataService as BaseCreateSeedDataService;
 
 /**
- * Class CreateSeedDataService
+ * Class CreateInitialDataService
  *
  * @package AdyenPayment\E2ETest\Services
  */
-class CreateSeedDataService extends BaseCreateSeedDataService
+class CreateInitialDataService extends BaseCreateSeedDataService
 {
     /**
-     * @var TestProxy
+     * @var ShopsTestProxy
      */
     private $shopProxy;
     /**
@@ -46,7 +44,8 @@ class CreateSeedDataService extends BaseCreateSeedDataService
     public function createInitialData(): void
     {
         $this->shopProxy->clearCache();
-        parent::createInitialData();
+        $this->updateBaseUrlAndDefaultShopName();
+        $this->createSubStores();
         $this->saveTestHostname();
     }
 
@@ -58,8 +57,14 @@ class CreateSeedDataService extends BaseCreateSeedDataService
     public function updateBaseUrlAndDefaultShopName(): void
     {
         $host = parse_url($this->baseUrl)['host'];
-        $name = $this->readFomJSONFile()['subStores'][0]['name'];
-        $this->shopProxy->updateBaseUrlAndDefaultShopName(1, $host, $name);
+        $name = $this->readFromJSONFile()['subStores'][0]['name'];
+        $this->shopProxy->updateSubStore(1,
+            [
+                'host' => $host,
+                'name' => $name,
+                'secure' => true
+            ]
+        );
     }
 
     /**
@@ -74,7 +79,7 @@ class CreateSeedDataService extends BaseCreateSeedDataService
             return;
         }
 
-        $subStores = $this->readFomJSONFile()['subStores'];
+        $subStores = $this->readFromJSONFile()['subStores'];
         $subStoresArrayLength = count($subStores);
         for ($i = 1; $i < $subStoresArrayLength; $i++) {
             $subStores[$i]['host'] = parse_url($this->baseUrl)['host'];
@@ -92,21 +97,6 @@ class CreateSeedDataService extends BaseCreateSeedDataService
     {
         $host = parse_url($this->baseUrl)['host'];
         $this->getConfigurationManager()->saveConfigValue('testHostname', $host);
-    }
-
-    /**
-     * Reads from json file
-     *
-     * @return array
-     */
-    private function readFomJSONFile(): array
-    {
-        $jsonString = file_get_contents(
-            './custom/plugins/AdyenPayment/E2ETest/Data/test_data.json',
-            FILE_USE_INCLUDE_PATH
-        );
-
-        return json_decode($jsonString, true);
     }
 
     /**
