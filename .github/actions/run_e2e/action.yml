@@ -87,8 +87,8 @@ runs:
         repository: ${{inputs.SHOPWARE_TEST_REPO}}
         path: tests
         token: ${{ inputs.GH_PAT }}
-        ref: feature/checkout
-        
+        ref: feature/analyse_iteration_3
+
     - name: Setup Node
       uses: actions/setup-node@v3
       with:
