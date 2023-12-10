@@ -7,7 +7,7 @@ use AdyenPayment\E2ETest\Services\AdyenAPIService;
 use AdyenPayment\E2ETest\Services\AuthorizationService;
 use AdyenPayment\E2ETest\Services\CreateCheckoutDataService;
 use AdyenPayment\E2ETest\Services\CreateInitialDataService;
-use AdyenPayment\E2ETest\Services\CreateOrderDataService;
+use AdyenPayment\E2ETest\Services\CreateWebhooksDataService;
 use Doctrine\ORM\OptimisticLockException;
 use Doctrine\ORM\ORMException;
 use Shopware\Components\CSRFWhitelistAware;
@@ -48,7 +48,7 @@ class Shopware_Controllers_Frontend_AdyenTest extends Enlight_Controller_Action 
     }
 
     /**
-     * Handles request by generating seed data for testing purposes
+     * Handles request by generating initial seed data for testing purposes
      *
      * @return void
      * @throws ORMException
@@ -63,7 +63,7 @@ class Shopware_Controllers_Frontend_AdyenTest extends Enlight_Controller_Action 
 
         try {
             if ($url === '' || $testApiKey === '' || $liveApiKey === '') {
-                throw new InvalidDataException('Url, test api key and live api key are required fields.');
+                throw new InvalidDataException('Url, test api key and live api key are required parameters.');
             }
 
             $adyenApiService = new AdyenAPIService();
@@ -72,8 +72,17 @@ class Shopware_Controllers_Frontend_AdyenTest extends Enlight_Controller_Action 
             $credentials = $authorizationService->getAuthorizationCredentials();
             $createSeedDataService = new CreateInitialDataService($url, $credentials);
             $createSeedDataService->createInitialData();
+            $createCheckoutDataService = new CreateCheckoutDataService($credentials);
+            $customerId = $createCheckoutDataService->crateCheckoutPrerequisitesData($testApiKey);
+            $createWebhookDataService = new CreateWebhooksDataService($credentials);
+            $webhookData = $createWebhookDataService->getWebhookAuthorizationData();
+            $ordersMerchantReferenceAndAmount = $createWebhookDataService->crateOrderPrerequisitesData($customerId);
             $this->Response()->setBody(
-                json_encode(['message' => 'The initial data setup was successfully completed.'])
+                json_encode(array_merge(
+                    $ordersMerchantReferenceAndAmount,
+                    $webhookData,
+                    ['message' => 'The initial data setup was successfully completed.']
+                ))
             );
         } catch (InvalidDataException $exception) {
             $this->Response()->setStatusCode(400);
@@ -82,6 +91,11 @@ class Shopware_Controllers_Frontend_AdyenTest extends Enlight_Controller_Action 
             );
         } catch (HttpRequestException $exception) {
             $this->Response()->setStatusCode(503);
+            $this->Response()->setBody(
+                json_encode(['message' => $exception->getMessage()])
+            );
+        } catch (Exception $exception) {
+            $this->Response()->setStatusCode(500);
             $this->Response()->setBody(
                 json_encode(['message' => $exception->getMessage()])
             );
