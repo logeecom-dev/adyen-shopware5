@@ -87,7 +87,7 @@ runs:
         repository: ${{inputs.SHOPWARE_TEST_REPO}}
         path: tests
         token: ${{ inputs.GH_PAT }}
-        ref: feature/webhooks_extension
+        ref: feature/express-checkout
 
     - name: Setup Node
       uses: actions/setup-node@v3
@@ -102,8 +102,8 @@ runs:
       
     - name: Install common
       shell: bash
-      run: npm install https://${{inputs.GH_PAT}}@github.com/${{inputs.COMMON_TEST_REPO}}#feature/webhooks_extension
-      
+      run: npm install https://${{inputs.GH_PAT}}@github.com/${{inputs.COMMON_TEST_REPO}}#feature/express-checkout
+
     - name: Install Playwright Browsers
       working-directory: ./tests
       shell: bash
@@ -130,7 +130,7 @@ runs:
       with:
         name: playwright-report-Shopware-${{ inputs.SHOPWARE }}-PHP-${{ inputs.PHP }}
         path: ./tests/playwright-report/
-        retention-days: 30  
+        retention-days: 30
     - name: Add docker logs to file
       if: always()
       shell: bash
@@ -146,7 +146,7 @@ runs:
       if: always()
       with:
         name: integration-error-log-${{ inputs.SHOPWARE }}-PHP-${{ inputs.PHP }}
-        path: ./var/log/adyen_payment_production-${{ echo $(date +'%Y-%m-%d') }}.log
+        path: ./var/log/adyen_payment_production-${{ docker exec -it prestashop bash -c 'echo $(date +'%Y-%m-%d')' }}.log
         retention-days: 30
     - name: Remove Ayden plugin
       shell: bash
