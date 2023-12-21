@@ -2,7 +2,7 @@
 on:
   push:
     branches:
-      - feature/webhooks_extension
+      - feature/main_e2e_tests
 jobs:
   build:
     permissions:
