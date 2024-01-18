@@ -2,7 +2,7 @@
 on:
   push:
     branches:
-      - feature/develop
+      - develop
 jobs:
   build:
     permissions:
